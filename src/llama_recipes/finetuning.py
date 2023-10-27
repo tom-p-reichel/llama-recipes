@@ -82,7 +82,7 @@ def main(**kwargs):
         if rank == 0:
             model = LlamaForCausalLM.from_pretrained(
                 train_config.model_name,
-                load_in_8bit=True if train_config.quantization else None,
+                load_in_4bit=True if train_config.quantization else None,
                 device_map="auto" if train_config.quantization else None,
                 use_cache=use_cache,
             )
@@ -95,7 +95,7 @@ def main(**kwargs):
     else:
         model = LlamaForCausalLM.from_pretrained(
             train_config.model_name,
-            load_in_8bit=True if train_config.quantization else None,
+            load_in_4bit=True if train_config.quantization else None,
             device_map="auto" if train_config.quantization else None,
             use_cache=use_cache,
         )
