@@ -106,6 +106,8 @@ def train(model, train_dataloader,eval_dataloader, tokenizer, optimizer, lr_sche
 
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
                 writer.add_scalar("Loss/train",loss.detach().float(),(train_step_num:=train_step_num+1))
+                # Update the learning rate as needed
+                lr_scheduler.step()
             pbar.close()
         writer.close()
         epoch_end_time = time.perf_counter()-epoch_start_time
@@ -135,8 +137,6 @@ def train(model, train_dataloader,eval_dataloader, tokenizer, optimizer, lr_sche
             print(f"Cuda Malloc retires : {memtrace.cuda_malloc_retires}")
             print(f"CPU Total Peak Memory consumed during the train (max): {memtrace.cpu_peaked + memtrace.cpu_begin} GB")
         
-        # Update the learning rate as needed
-        lr_scheduler.step()
           
         if train_config.run_validation:
             eval_ppl, eval_epoch_loss = evaluation(model, train_config, eval_dataloader, local_rank, tokenizer)

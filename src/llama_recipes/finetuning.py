@@ -19,7 +19,7 @@ from transformers import (
     LlamaForCausalLM,
     LlamaTokenizer,
     LlamaConfig,
-    default_data_collator,
+    DataCollatorForTokenClassification
 )
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
@@ -195,6 +195,8 @@ def main(**kwargs):
                 num_replicas=dist.get_world_size(),
             )
 
+    default_data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer,padding=True)
+
     # Create DataLoaders for the training and validation dataset
     train_dataloader = torch.utils.data.DataLoader(
         dataset_train,
@@ -234,7 +236,7 @@ def main(**kwargs):
             lr=train_config.lr,
             weight_decay=train_config.weight_decay,
         )
-    scheduler = StepLR(optimizer, step_size=1, gamma=train_config.gamma)
+    scheduler = StepLR(optimizer, step_size=train_config.decay_steps, gamma=train_config.gamma)
 
     # Start the training process
     results = train(
