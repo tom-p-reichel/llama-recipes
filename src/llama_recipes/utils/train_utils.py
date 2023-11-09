@@ -3,6 +3,7 @@
 
 import os
 import time
+import gc
 import yaml
 from contextlib import nullcontext
 from pathlib import Path
@@ -11,6 +12,7 @@ from pkg_resources import packaging
 
 import torch
 import torch.cuda.nccl as nccl
+from torch.nn.utils import clip_grad_norm_
 import torch.distributed as dist
 from torch.distributed.fsdp import StateDictType
 from torch.distributed.fsdp.sharded_grad_scaler import ShardedGradScaler
@@ -86,7 +88,7 @@ def train(model, train_dataloader,eval_dataloader, tokenizer, optimizer, lr_sche
                         batch[key] = batch[key].to('cuda:0')              
                 with autocast():
                     loss = model(**batch).loss
-                loss = loss / gradient_accumulation_steps
+                loss /= gradient_accumulation_steps
                 total_loss += loss.detach().float()
                 if train_config.use_fp16:
                     # if fp16 is enabled, use gradient scaler to handle gradient update
@@ -98,14 +100,28 @@ def train(model, train_dataloader,eval_dataloader, tokenizer, optimizer, lr_sche
                         pbar.update(1)
                 else:
                     # regular backpropagation when fp16 is not used
-                    loss.backward()
+                    gc.collect()
+                    try:
+                        loss.backward()
+                    except torch.cuda.OutOfMemoryError:
+                        print("whoops! skipping this step.")
+                        loss = loss.detach()
+                        gc.collect()
+                        # might have partially written gradients.
+                        # nuking them
+                        optimizer.zero_grad()
+
                     if (step + 1) % gradient_accumulation_steps == 0 or step == len(train_dataloader) - 1:
+                        writer.add_scalar("Gradient Magnitude/train",clip_grad_norm_(model.parameters(),train_config.gradient_clip),train_step_num)
                         optimizer.step()
                         optimizer.zero_grad()
+                        gc.collect()
                         pbar.update(1)
 
+
+                    gc.collect()
                 pbar.set_description(f"Training Epoch: {epoch+1}/{train_config.num_epochs}, step {step}/{len(train_dataloader)} completed (loss: {loss.detach().float()})")
-                writer.add_scalar("Loss/train",loss.detach().float(),(train_step_num:=train_step_num+1))
+                writer.add_scalar("Loss/train",loss.detach().float()*gradient_accumulation_steps,(train_step_num:=train_step_num+1))
                 # Update the learning rate as needed
                 lr_scheduler.step()
             pbar.close()

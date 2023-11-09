@@ -19,7 +19,8 @@ from transformers import (
     LlamaForCausalLM,
     LlamaTokenizer,
     LlamaConfig,
-    DataCollatorForTokenClassification
+    DataCollatorForTokenClassification,
+    BitsAndBytesConfig
 )
 from transformers.models.llama.modeling_llama import LlamaDecoderLayer
 
@@ -46,6 +47,13 @@ from llama_recipes.utils.train_utils import (
 
 
 def main(**kwargs):
+    train_config.quantization = train_config.fourbit_quantization or train_config.eightbit_quantization
+
+    bnb_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=torch.float16
+    )
+
     # Update the configuration for the training and sharding process
     update_config((train_config, fsdp_config), **kwargs)
 
@@ -82,9 +90,11 @@ def main(**kwargs):
         if rank == 0:
             model = LlamaForCausalLM.from_pretrained(
                 train_config.model_name,
-                load_in_4bit=True if train_config.quantization else None,
-                device_map="auto" if train_config.quantization else None,
+                load_in_4bit=True if train_config.fourbit_quantization else None,
+                load_in_8bit=True if train_config.eightbit_quantization else None,
+                device_map="auto" if train_config.fourbit_quantization or train_config.eightbit_quantization else None,
                 use_cache=use_cache,
+                quantization_config = bnb_config if train_config.fourbit_quantization else None
             )
         else:
             llama_config = LlamaConfig.from_pretrained(train_config.model_name)
@@ -95,9 +105,11 @@ def main(**kwargs):
     else:
         model = LlamaForCausalLM.from_pretrained(
             train_config.model_name,
-            load_in_4bit=True if train_config.quantization else None,
+            load_in_4bit=True if train_config.fourbit_quantization else None,
+            load_in_8bit=True if train_config.eightbit_quantization else None,
             device_map="auto" if train_config.quantization else None,
             use_cache=use_cache,
+            quantization_config = bnb_config if train_config.fourbit_quantization else None
         )
     if train_config.enable_fsdp and train_config.use_fast_kernels:
         """

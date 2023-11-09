@@ -16,6 +16,7 @@ class train_config:
     num_workers_dataloader: int=1
     lr: float=1e-4
     weight_decay: float=0.0
+    gradient_clip :float = 1.0
     gamma: float= 0.85
     seed: int=42
     use_fp16: bool=False
@@ -27,7 +28,8 @@ class train_config:
     output_dir: str = "PATH/to/save/PEFT/model"
     freeze_layers: bool = False
     num_freeze_layers: int = 1
-    quantization: bool = False
+    fourbit_quantization: bool = False
+    eightbit_quantization: bool = False
     one_gpu: bool = False
     save_model: bool = True
     dist_checkpoint_root_folder: str="PATH/to/save/FSDP/model" # will be used if using FSDP
