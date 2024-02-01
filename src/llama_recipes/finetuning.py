@@ -16,12 +16,11 @@ from torch.distributed.fsdp.fully_sharded_data_parallel import CPUOffload
 from torch.optim.lr_scheduler import StepLR
 from torch.utils.data import DistributedSampler
 from transformers import (
-    LlamaForCausalLM,
-    LlamaTokenizer,
+    AutoTokenizer,
     LlamaConfig,
-    DataCollatorForTokenClassification
+    DefaultDataCollator
 )
-from transformers.models.llama.modeling_llama import LlamaDecoderLayer
+from transformers.models.llama.modeling_llama import LlamaDecoderLayer, LlamaForSearch
 
 from llama_recipes.configs import fsdp_config, train_config
 from llama_recipes.policies import AnyPrecisionAdamW, apply_fsdp_checkpointing
@@ -80,7 +79,7 @@ def main(**kwargs):
             raise Exception("latest pytorch nightly build is required to run with low_cpu_fsdp config, "
                             "please install latest nightly.")
         if rank == 0:
-            model = LlamaForCausalLM.from_pretrained(
+            model = LlamaForSearch.from_pretrained(
                 train_config.model_name,
                 load_in_4bit=True if train_config.quantization else None,
                 device_map="auto" if train_config.quantization else None,
@@ -93,7 +92,7 @@ def main(**kwargs):
                 model = LlamaForCausalLM(llama_config)
 
     else:
-        model = LlamaForCausalLM.from_pretrained(
+        model = LlamaForSearch.from_pretrained(
             train_config.model_name,
             load_in_4bit=True if train_config.quantization else None,
             device_map="auto" if train_config.quantization else None,
@@ -121,13 +120,18 @@ def main(**kwargs):
         model.to(torch.bfloat16)
 
     # Load the tokenizer and add special tokens
-    tokenizer = LlamaTokenizer.from_pretrained(train_config.model_name)
+    tokenizer = AutoTokenizer.from_pretrained(train_config.model_name)
+    """
     tokenizer.add_special_tokens(
             {
 
                 "pad_token": "<PAD>",
             }
         )
+    """
+    # https://github.com/facebookresearch/llama-recipes/issues/298
+    # this is masked and shouldn't matter
+    tokenizer.pad_token_id = 0
     if train_config.use_peft:
         peft_config = generate_peft_config(train_config, kwargs)
         model = get_peft_model(model, peft_config)
@@ -195,7 +199,7 @@ def main(**kwargs):
                 num_replicas=dist.get_world_size(),
             )
 
-    default_data_collator = DataCollatorForTokenClassification(tokenizer=tokenizer,padding=True)
+    default_data_collator = DefaultDataCollator()
 
     # Create DataLoaders for the training and validation dataset
     train_dataloader = torch.utils.data.DataLoader(
