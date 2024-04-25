@@ -135,7 +135,7 @@ def main(**kwargs):
     if train_config.use_peft:
         if train_config.load_pretrained_lora is not None:
             print("loading pretrained lora...")
-            model = PeftModel.from_pretrained(train_config.load_pretrained_lora)
+            model = PeftModel.from_pretrained(model,train_config.load_pretrained_lora)
         else:
             peft_config = generate_peft_config(train_config, kwargs)
             model = get_peft_model(model, peft_config)
