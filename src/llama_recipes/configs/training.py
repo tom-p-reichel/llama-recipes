@@ -36,6 +36,7 @@ class train_config:
     save_optimizer: bool=False # will be used if using FSDP
     decay_steps : int = 375 # how many training steps until gamma is applied
     use_fast_kernels: bool = False # Enable using SDPA from PyTroch Accelerated Transformers, make use Flash Attention and Xformer memory-efficient kernels
+    load_pretrained_lora : str = None
 
     
     

@@ -8,7 +8,7 @@ import fire
 import torch
 import torch.distributed as dist
 import torch.optim as optim
-from peft import get_peft_model, prepare_model_for_kbit_training
+from peft import get_peft_model, prepare_model_for_kbit_training, PeftModel
 from torch.distributed.fsdp import (
     FullyShardedDataParallel as FSDP,
 )
@@ -133,8 +133,12 @@ def main(**kwargs):
     # this is masked and shouldn't matter
     tokenizer.pad_token_id = 0
     if train_config.use_peft:
-        peft_config = generate_peft_config(train_config, kwargs)
-        model = get_peft_model(model, peft_config)
+        if train_config.load_pretrained_lora is not None:
+            print("loading pretrained lora...")
+            model = PeftModel.from_pretrained(train_config.load_pretrained_lora)
+        else:
+            peft_config = generate_peft_config(train_config, kwargs)
+            model = get_peft_model(model, peft_config)
         model.print_trainable_parameters()
 
     #setting up FSDP if enable_fsdp is enabled
